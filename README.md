@@ -1,0 +1,126 @@
+# LLM EvalOps Platform
+
+Agent eval, observability, and release platform for the AI intern portfolio.
+
+Receives completed run reports from upstream systems (agent, RAG, post-training), normalizes them into a unified schema, and supports cross-version comparison and threshold-based release gating.
+
+## Architecture
+
+```
+Producer (llm-coding-agent-system / rag-benchmark-system / finetune)
+    │
+    │  POST /v1/ingest/{app_type}/{version}
+    ▼
+┌─────────────────────────────────┐
+│  Ingest API                     │
+│  Pydantic validation + idempotent write  │
+└────────────────┬────────────────┘
+                 │  status = pending
+                 ▼
+┌─────────────────────────────────┐
+│  Normalization Worker           │
+│  Polls pending → routes via     │
+│  REGISTRY → writes runs +       │
+│  run_metrics                    │
+└─────────────────────────────────┘
+
+Consumer API
+  GET  /v1/runs                          — list runs (filter by app_type, task_set_id, status)
+  GET  /v1/runs/{app_type}/{run_id}      — single run detail
+  GET  /v1/runs/{app_type}/{run_id}/metrics
+  POST /v1/compare                       — cross-version metric delta
+  POST /v1/gate                          — threshold-based release decision
+```
+
+The API and normalization worker run as **separate processes** against the same SQLite database (WAL mode). See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full ingest → normalize → compare → gate flow.
+
+## Supported Producers
+
+| Schema key | Producer | Status |
+|------------|----------|--------|
+| `agent/v1` | `llm-coding-agent-system` | Active |
+| `rag/v1` | `rag-benchmark-system` | Active |
+| `finetune/v1` | `coding-llm-finetune` | Stub (unsupported, no retry) |
+
+See [`docs/ADAPTERS.md`](docs/ADAPTERS.md) for per-producer field contracts and how to add a new adapter.
+
+## Quick Start
+
+```bash
+# Install
+uv sync
+cp .env.example .env
+
+# Start API server (default: 127.0.0.1:8000)
+uv run python scripts/start_api.py
+
+# Start normalization worker (separate terminal)
+uv run python scripts/start_worker.py
+
+# Run all tests
+uv run pytest
+```
+
+### Enable reporting from producers
+
+**llm-coding-agent-system:**
+```bash
+export EVALOPS_ENDPOINT=http://localhost:8000/v1/ingest/agent/v1
+uv run python -m coder_agent run "fix the bug"
+```
+
+**rag-benchmark-system:**
+```bash
+export EVALOPS_ENDPOINT=http://localhost:8000/v1/ingest/rag/v1
+uv run python scripts/run_naive_rag_baseline.py --config config/default.yaml --dataset hotpotqa --num-queries 50
+```
+
+### Compare two runs
+
+```bash
+curl -X POST http://localhost:8000/v1/compare \
+  -H "Content-Type: application/json" \
+  -d '{
+    "baseline_run": {"app_type": "agent", "run_id": "run-abc"},
+    "candidate_run": {"app_type": "agent", "run_id": "run-xyz"},
+    "metrics": ["tool_success_rate", "task_success", "wall_duration_ms"]
+  }'
+```
+
+### Check release gate
+
+```bash
+curl -X POST http://localhost:8000/v1/gate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "baseline_run": {"app_type": "agent", "run_id": "run-abc"},
+    "candidate_run": {"app_type": "agent", "run_id": "run-xyz"},
+    "rules": [
+      {"metric": "tool_success_rate", "op": "delta_abs_gte", "threshold": -0.05},
+      {"metric": "task_success",      "op": "delta_abs_gte", "threshold": 0.0}
+    ]
+  }'
+```
+
+## Project Structure
+
+```
+src/llm_evalops_platform/
+  api/          FastAPI routers — ingest, runs, compare, gate
+  worker/       Normalization worker — polls pending records, routes via REGISTRY
+  adapters/     Payload normalizers — one file per schema_version
+  domain/       Pure Python dataclasses — Run, RunMetric, CompareResult, ReleaseDecision
+  schemas/      Pydantic request/response models
+  services/     Business logic — compare delta and gate evaluation
+  storage/      SQLite connection management + migrations
+```
+
+## Tech Stack
+
+| Component | Choice |
+|-----------|--------|
+| API | FastAPI + uvicorn |
+| Database | SQLite (WAL mode) |
+| Validation | Pydantic v2 + pydantic-settings |
+| Tests | pytest + pytest-asyncio + httpx |
+| Package manager | uv |
