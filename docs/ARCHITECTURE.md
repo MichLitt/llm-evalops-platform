@@ -44,7 +44,8 @@ llm-evalops-platform/
 ├── pyproject.toml            Python 3.12, uv, FastAPI, Pydantic, pydantic-settings
 ├── .python-version           Pins Python 3.12 for uv
 ├── .env.example              Environment variable template
-├── CLAUDE.md                 Developer commands and documentation update rules
+├── AGENTS.md                 Canonical commands and engineering invariants
+├── CLAUDE.md                 Compatibility pointer to AGENTS.md
 │
 ├── src/llm_evalops_platform/
 │   │
@@ -94,7 +95,8 @@ llm-evalops-platform/
 │   ├── integration/          End-to-end tests against real DB and API
 │   │   ├── test_rag_ingest_to_gate.py   Full RAG chain (MVP acceptance test)
 │   │   ├── test_agent_ingest.py         Agent ingest + task_set_id rules
-│   │   └── test_idempotent_ingest.py    Duplicate submission handling
+│   │   ├── test_idempotent_ingest.py    Duplicate submission handling
+│   │   └── test_ingest_validation.py    Versioned producer schema validation
 │   └── unit/                 Isolated unit tests (gate rule engine, adapters, etc.)
 │
 └── docs/

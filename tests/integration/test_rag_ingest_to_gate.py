@@ -64,7 +64,7 @@ def test_rag_ingest_idempotent(client, run_worker):
     assert r2.json()["status"] == "duplicate"
 
 
-def test_rag_full_chain(client, run_worker):
+def test_rag_full_chain(client, run_worker, test_db):
     # 1. ingest both runs
     client.post("/v1/ingest/rag/v1", json=RAG_BASELINE)
     client.post("/v1/ingest/rag/v1", json=RAG_CANDIDATE)
@@ -109,3 +109,11 @@ def test_rag_full_chain(client, run_worker):
     detail_map = {d["metric"]: d for d in gate_data["detail"]}
     assert detail_map["f1"]["passed"] is True
     assert detail_map["hallucination_rate"]["passed"] is True
+
+    with test_db.connection() as conn:
+        persisted = conn.execute(
+            "SELECT decision FROM release_decisions WHERE id = ?",
+            (gate_data["release_decision_id"],),
+        ).fetchone()
+    assert persisted is not None
+    assert persisted["decision"] == "promoted"

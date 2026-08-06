@@ -7,18 +7,22 @@ stored verbatim in ingested_reports.raw_payload.
 
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+
+RunId = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
 class BaseIngestRequest(BaseModel):
-    run_id: str = Field(..., min_length=1)
+    run_id: RunId
 
     model_config = ConfigDict(extra="allow")
 
 
 class RagV1IngestRequest(BaseIngestRequest):
     """Matches rag-benchmark-system EvalRunReport fields."""
-    schema_version: str = "rag/v1"
+    schema_version: Literal["rag/v1"] = "rag/v1"
     dataset: str = ""
     retriever_mode: str = ""
     generator_model: str = ""
@@ -38,8 +42,8 @@ class RagV1IngestRequest(BaseIngestRequest):
 
 class AgentV1IngestRequest(BaseIngestRequest):
     """Matches llm-coding-agent-system EvalOpsClient payload."""
-    schema_version: str = "agent/v1"
-    run_type: str = Field(..., pattern="^(eval|service)$")
+    schema_version: Literal["agent/v1"] = "agent/v1"
+    run_type: Literal["eval", "service"]
     status: str = ""
     total_steps: int = 0
     total_tool_calls: int = 0
@@ -57,7 +61,7 @@ class AgentV1IngestRequest(BaseIngestRequest):
 
 class FinetuneV1IngestRequest(BaseIngestRequest):
     """Stub — worker marks these unsupported until adapter is implemented."""
-    schema_version: str = "finetune/v1"
+    schema_version: Literal["finetune/v1"] = "finetune/v1"
 
 
 class IngestResponse(BaseModel):

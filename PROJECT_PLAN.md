@@ -1,5 +1,9 @@
 # llm-evalops-platform 实现计划
 
+> **状态更新（2026-08-06）：** Phase 2 Agent/RAG MVP 已完成并通过 45 项本地测试；
+> 根目录 `scripts/run_three_project_closure.sh` 已验证真实 producer payload、独立 API/worker、
+> compare、gate 与 release decision 持久化。Phase 5 review UI 与 bad-case API 仍未完成。
+
 ## 1. 项目定位
 
 面向 agent / RAG / post-training 的共享评测、观测、发布平台。  
@@ -301,12 +305,12 @@ gate endpoint 接受规则列表，每条规则格式：
 
 **目标**：平台骨架 + DB + ingest 端点 + worker 可运行
 
-- [ ] 初始化 repo（pyproject.toml + uv + FastAPI + Pydantic + SQLite）
-- [ ] 实现 DB schema 和 migration 脚本（`storage/migrations/`）
-- [ ] 实现 `POST /v1/ingest/rag/v1`（含幂等约束）
-- [ ] 实现 `POST /v1/ingest/agent/v1`（含幂等约束）
-- [ ] 实现 `POST /v1/ingest/finetune/v1`（接受 payload，worker 遇到此 schema_version 直接标 `unsupported`，不进入重试队列）
-- [ ] 实现标准化 worker 进程（`worker/normalizer.py`），含 lease/reclaim 机制：
+- [x] 初始化 repo（pyproject.toml + uv + FastAPI + Pydantic + SQLite）
+- [x] 实现 DB schema 和 migration 脚本（`storage/migrations/`）
+- [x] 实现 `POST /v1/ingest/rag/v1`（含幂等约束）
+- [x] 实现 `POST /v1/ingest/agent/v1`（含幂等约束）
+- [x] 实现 `POST /v1/ingest/finetune/v1`（接受 payload，worker 遇到此 schema_version 直接标 `unsupported`，不进入重试队列）
+- [x] 实现标准化 worker 进程（`worker/normalizer.py`），含 lease/reclaim 机制：
   - 每轮轮询同时处理两类记录：
     1. `status = 'pending'`
     2. `status = 'processing' AND claimed_at < now - LEASE_TIMEOUT_SECS`（默认 60s）
@@ -315,9 +319,9 @@ gate endpoint 接受规则列表，每条规则格式：
   - 失败且 `attempt_count < MAX_RETRIES`（默认 3）：`UPDATE SET status='pending', attempt_count+=1, last_error=...`
   - 达到最大重试次数：`UPDATE SET status='failed'`
   - 无对应 adapter：`UPDATE SET status='unsupported'`
-- [ ] 实现 `GET /v1/runs`（支持 query 参数：`app_type`、`task_set_id`、`status`、`limit`、`offset`）
-- [ ] 实现 `GET /v1/runs/{app_type}/{run_id}`
-- [ ] 在 ingest endpoint 和 worker 加结构化日志（JSON，字段：`run_id`、`app_type`、`schema_version`、`latency_ms`、`status`、`error`）
+- [x] 实现 `GET /v1/runs`（支持 query 参数：`app_type`、`task_set_id`、`status`、`limit`、`offset`）
+- [x] 实现 `GET /v1/runs/{app_type}/{run_id}`
+- [x] 在 ingest endpoint 和 worker 加结构化日志（JSON，字段：`run_id`、`app_type`、`schema_version`、`latency_ms`、`status`、`error`）
 
 ---
 
@@ -329,7 +333,7 @@ gate endpoint 接受规则列表，每条规则格式：
 
 RAG 已有 `EvalOpsClient` + `EvalRunReport`（`schema_version = "rag/v1"`），迁移成本最低。
 
-- [ ] 实现 `adapters/rag_v1.py`，字段映射（依据 3.2 节契约）：
+- [x] 实现 `adapters/rag_v1.py`，字段映射（依据 3.2 节契约）：
 
   | `EvalRunReport` 字段 | `runs` 字段 | `run_metrics` 指标名 |
   |---|---|---|
@@ -352,23 +356,23 @@ RAG 已有 `EvalOpsClient` + `EvalRunReport`（`schema_version = "rag/v1"`），
   | `avg_generation_cost_usd` | — | `avg_generation_cost_usd` |
   | — | `wall_duration_ms = NULL` | — |
 
-- [ ] 把 RAG 的 `EvalOpsClient` endpoint 指向本平台
-- [ ] 端到端验证：RAG 跑完一次 eval → 上报 → 平台可查询
+- [x] 把 RAG 的 `EvalOpsClient` endpoint 指向本平台
+- [x] 端到端验证：RAG 跑完一次 eval → 上报 → 平台可查询
 
 ### 7.2 接入 llm-coding-agent-system
 
 `RunRecordModel`（`schemas.py`）没有 `dataset_version` 和 `model_version` 独立字段，按 3.2 节契约处理：`dataset_version = NULL`，`model_version` 取 `llm_profile`。
 
-- [ ] 在 `llm-coding-agent-system` 里新增 `coder_agent/evalops/client.py`：
+- [x] 在 `llm-coding-agent-system` 里新增 `coder_agent/evalops/client.py`：
   - fire-and-forget HTTP POST
   - 超时（建议 3s）后静默丢弃，不抛异常，不阻塞 agent run
   - 失败时写本地日志，run 结果保留在本地 SQLite
-- [ ] 挂在 `RunStateStore.finish_run` 之后触发上报
-- [ ] 上报字段（MVP）：
+- [x] 挂在 `RunStateStore.finish_run` 之后触发上报
+- [x] 上报字段（MVP）：
   - 所有 run 类型共有：`run_id`、`run_type`（`"eval"` 或 `"service"`）、`status`、`total_steps`、`total_tool_calls`、`tool_success_rate`、`total_tokens`、`termination_reason`、`wall_duration_ms`、`git_commit`、`preset`、`llm_profile`
   - eval run 额外携带：`benchmark_name`、`task_ids`（列表）
   - service run：`benchmark_name` 和 `task_ids` 不填
-- [ ] 实现 `adapters/agent_v1.py`，字段映射（依据 3.2 节契约）：
+- [x] 实现 `adapters/agent_v1.py`，字段映射（依据 3.2 节契约）：
 
   | 上报字段 | `runs` 字段 | `run_metrics` 指标名 | 说明 |
   |---|---|---|---|
@@ -387,11 +391,11 @@ RAG 已有 `EvalOpsClient` + `EvalRunReport`（`schema_version = "rag/v1"`），
 
 ### 7.3 Compare + Gate
 
-- [ ] 实现 `POST /v1/compare`：
+- [x] 实现 `POST /v1/compare`：
   - 前置校验：两个 `(app_type, run_id)` 均存在，且 `app_type` 相同、`task_set_id` 相同且非 NULL；不满足返回 422 并说明原因
   - 计算每个指标的 `absolute_delta = candidate - baseline` 和 `percent_delta = (candidate - baseline) / |baseline|`
   - 写入 `compare_sessions.result_json`
-- [ ] 实现 `POST /v1/gate`：
+- [x] 实现 `POST /v1/gate`：
   - 接受 `compare_session_id` + `rules[]`
   - 按规则 schema（第 5 节）执行，`required: true` 的规则任意失败则整体 `rejected`
   - 写入 `release_decisions`
@@ -399,7 +403,7 @@ RAG 已有 `EvalOpsClient` + `EvalRunReport`（`schema_version = "rag/v1"`），
 
 ### 7.4 集成测试（MVP 验收）
 
-- [ ] `tests/integration/test_rag_ingest_to_gate.py`：
+- [x] `tests/integration/test_rag_ingest_to_gate.py`：
 
   ```
   POST /v1/ingest/rag/v1 (run_a, baseline)
@@ -410,8 +414,8 @@ RAG 已有 `EvalOpsClient` + `EvalRunReport`（`schema_version = "rag/v1"`），
   POST /v1/gate             → 校验 decision + per-rule detail
   ```
 
-- [ ] `tests/integration/test_agent_ingest.py`：上报 + 查询 + NULL 字段校验
-- [ ] `tests/integration/test_idempotent_ingest.py`：同一 run_id 重复上报，确认返回 200 且 DB 无重复行
+- [x] `tests/integration/test_agent_ingest.py`：上报 + 查询 + NULL 字段校验
+- [x] `tests/integration/test_idempotent_ingest.py`：同一 run_id 重复上报，确认返回 200 且 DB 无重复行
 
 ---
 
@@ -423,7 +427,7 @@ RAG 已有 `EvalOpsClient` + `EvalRunReport`（`schema_version = "rag/v1"`），
 - [ ] `POST /v1/runs/{app_type}/{run_id}/bad-cases/{case_id}/tags`
 - [ ] compare_session 扩展 per-case 对比视图
 - [ ] 最小前端：静态 HTML + fetch，展示 run list + compare 结果（不做 SPA）
-- [ ] README 架构图：以 `ingest → normalize → compare → gate → release decision` 为主干，突出 `release_decisions` 是平台核心产出而非附属功能
+- [x] README 架构图：以 `ingest → normalize → compare → gate → release decision` 为主干，突出 `release_decisions` 是平台核心产出而非附属功能
 
 ---
 
