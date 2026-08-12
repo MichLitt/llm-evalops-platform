@@ -62,9 +62,18 @@ uv run python scripts/start_api.py
 # Start normalization worker (separate terminal)
 uv run python scripts/start_worker.py
 
+# Open the human review page (runs, compare/gate evidence, and bad-case tags)
+open http://127.0.0.1:8000/ui/
+
 # Run all tests
 uv run pytest
 ```
+
+The review page consumes only `/v1` endpoints. It shows normalized runs and
+metrics, persisted compare/gate decisions, and lets reviewers tag an individual
+run's failure case with a short taxonomy label and note. Programmatic clients
+can use `GET/POST /v1/runs/{app_type}/{run_id}/bad-cases`, `GET /v1/bad-cases`,
+and `GET /v1/compare[/{compare_session_id}]` directly.
 
 ### Enable reporting from producers
 
