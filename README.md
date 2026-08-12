@@ -75,6 +75,11 @@ run's failure case with a short taxonomy label and note. Programmatic clients
 can use `GET/POST /v1/runs/{app_type}/{run_id}/bad-cases`, `GET /v1/bad-cases`,
 and `GET /v1/compare[/{compare_session_id}]` directly.
 
+Set `EVALOPS_API_TOKEN` in a deployed environment to require a Bearer token for
+all `/v1` API calls. `/health` stays unauthenticated for health checks. The
+review page lets an operator enter the token locally; producers use the existing
+`EVALOPS_API_KEY` environment variable when submitting reports.
+
 ### Enable reporting from producers
 
 **llm-coding-agent-system:**

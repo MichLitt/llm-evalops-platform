@@ -13,7 +13,7 @@
   </style>
 </head>
 <body>
-  <header><h1>EvalOps Review</h1><p>Runs, comparisons, release gates, and human-labeled failure cases.</p></header>
+  <header><h1>EvalOps Review</h1><p>Runs, comparisons, release gates, and human-labeled failure cases.</p><div class="row"><input id="apiToken" type="password" placeholder="Optional API token"><button class="secondary" id="saveToken">Use token</button></div></header>
   <main>
     <section><div class="row"><h2 class="grow">Runs</h2><select id="appFilter"><option value="">All producers</option><option>agent</option><option>rag</option><option>finetune</option></select><button id="refreshRuns">Refresh</button></div><div id="runs"></div></section>
     <section><h2>Run detail</h2><div id="runDetail" class="empty">Select a run to inspect metrics and tags.</div><form id="tagForm" hidden><div class="row"><input id="caseId" required placeholder="case ID"><input id="caseTag" required placeholder="failure tag"><button>Tag bad case</button></div><textarea id="caseNote" placeholder="Optional review note" rows="2" style="width:100%;margin-top:8px"></textarea></form></section>
@@ -21,15 +21,17 @@
     <section class="full"><div class="row"><h2 class="grow">Bad-case review queue</h2><button id="refreshCases">Refresh</button></div><div id="badCases"></div></section>
   </main>
   <script>
-    const api='/v1'; let selected=null;
     const el=id=>document.getElementById(id); const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-    async function get(path){const r=await fetch(api+path);if(!r.ok)throw new Error(await r.text());return r.json()}
+    const api='/v1'; let selected=null; let token=localStorage.getItem('evalops_api_token')||''; el('apiToken').value=token;
+    function headers(extra={}){return token?{...extra,Authorization:`Bearer ${token}`} : extra}
+    async function get(path){const r=await fetch(api+path,{headers:headers()});if(!r.ok)throw new Error(await r.text());return r.json()}
     function error(target,e){el(target).innerHTML=`<p class="bad">${esc(e.message)}</p>`}
     async function runs(){try{const type=el('appFilter').value;const d=await get('/runs?limit=100'+(type?'&app_type='+encodeURIComponent(type):''));el('runs').innerHTML=d.runs.length?`<table><tr><th>producer</th><th>run</th><th>status</th></tr>${d.runs.map(r=>`<tr><td>${esc(r.app_type)}</td><td><button class="secondary mono" data-a="${esc(r.app_type)}" data-r="${esc(r.run_id)}">${esc(r.run_id)}</button></td><td>${esc(r.status)}</td></tr>`).join('')}</table>`:'<div class="empty">No normalized runs yet.</div>';document.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>detail(b.dataset.a,b.dataset.r));}catch(e){error('runs',e)}}
     async function detail(app,id){try{selected={app,id};const [d,t]=await Promise.all([get(`/runs/${encodeURIComponent(app)}/${encodeURIComponent(id)}`),get(`/runs/${encodeURIComponent(app)}/${encodeURIComponent(id)}/bad-cases`)]);el('runDetail').innerHTML=`<p><b>${esc(app)}</b> / <span class="mono">${esc(id)}</span></p><div class="detail">${esc(JSON.stringify({metrics:d.metrics,bad_cases:t.bad_cases},null,2))}</div>`;el('tagForm').hidden=false;}catch(e){error('runDetail',e)}}
     async function compares(){try{const d=await get('/compare?limit=50');el('compares').innerHTML=d.sessions.length?`<table><tr><th>ID</th><th>producer</th><th>baseline → candidate</th><th>latest gate</th></tr>${d.sessions.map(s=>{const gate=s.decisions[0]?.decision||'not evaluated';return `<tr><td>${s.compare_session_id}</td><td>${esc(s.app_type)}</td><td class="mono">${esc(s.baseline_run_id)} → ${esc(s.candidate_run_id)}</td><td class="${gate==='promoted'?'ok':'bad'}">${esc(gate)}</td></tr>`}).join('')}</table>`:'<div class="empty">No compare sessions yet.</div>';}catch(e){error('compares',e)}}
     async function cases(){try{const d=await get('/bad-cases?limit=100');el('badCases').innerHTML=d.bad_cases.length?`<table><tr><th>run</th><th>case</th><th>tag</th><th>note</th></tr>${d.bad_cases.map(c=>`<tr><td class="mono">${esc(c.app_type)}/${esc(c.run_id)}</td><td>${esc(c.case_id)}</td><td>${esc(c.tag)}</td><td>${esc(c.note)}</td></tr>`).join('')}</table>`:'<div class="empty">No bad cases tagged.</div>';}catch(e){error('badCases',e)}}
-    el('tagForm').onsubmit=async event=>{event.preventDefault();if(!selected)return;try{await fetch(`${api}/runs/${encodeURIComponent(selected.app)}/${encodeURIComponent(selected.id)}/bad-cases`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({case_id:el('caseId').value,tag:el('caseTag').value,note:el('caseNote').value||null})}).then(async r=>{if(!r.ok)throw new Error(await r.text())});event.target.reset();await detail(selected.app,selected.id);await cases();}catch(e){error('runDetail',e)}};
+    el('tagForm').onsubmit=async event=>{event.preventDefault();if(!selected)return;try{await fetch(`${api}/runs/${encodeURIComponent(selected.app)}/${encodeURIComponent(selected.id)}/bad-cases`,{method:'POST',headers:headers({'Content-Type':'application/json'}),body:JSON.stringify({case_id:el('caseId').value,tag:el('caseTag').value,note:el('caseNote').value||null})}).then(async r=>{if(!r.ok)throw new Error(await r.text())});event.target.reset();await detail(selected.app,selected.id);await cases();}catch(e){error('runDetail',e)}};
+    el('saveToken').onclick=()=>{token=el('apiToken').value;localStorage.setItem('evalops_api_token',token);runs();compares();cases()};
     el('refreshRuns').onclick=runs;el('refreshCompares').onclick=compares;el('refreshCases').onclick=cases;el('appFilter').onchange=runs;runs();compares();cases();
   </script>
 </body></html>
