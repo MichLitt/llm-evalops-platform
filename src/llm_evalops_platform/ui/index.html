@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>EvalOps Review</title>
+  <style>
+    :root { color-scheme: dark; --bg:#10151d; --panel:#18212c; --line:#304154; --text:#e8eef5; --muted:#9caec1; --accent:#5fd1b9; }
+    * { box-sizing:border-box } body { margin:0; background:var(--bg); color:var(--text); font:14px system-ui,sans-serif }
+    header { padding:24px max(24px,calc((100vw - 1200px)/2)); border-bottom:1px solid var(--line) } h1 { margin:0 0 5px; font-size:24px } p { color:var(--muted) }
+    main { max-width:1200px; margin:auto; padding:24px; display:grid; grid-template-columns:1fr 1fr; gap:18px } section { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px; min-width:0 } section.full { grid-column:1 / -1 }
+    h2 { margin:0 0 12px; font-size:17px } button,input,select,textarea { background:#0f1720;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px } button { cursor:pointer;color:#061411;background:var(--accent);border:0;font-weight:700 } button.secondary { background:#263649;color:var(--text) } table { width:100%;border-collapse:collapse } td,th { padding:8px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top } th { color:var(--muted);font-size:12px } code,.mono { font-family:ui-monospace,monospace } .row { display:flex;gap:8px;align-items:center;flex-wrap:wrap }.grow{flex:1}.ok{color:var(--accent)}.bad{color:#ff9f8e}.empty{color:var(--muted);padding:12px 0}.detail{white-space:pre-wrap;overflow:auto;max-height:300px;background:#0f1720;padding:10px;border-radius:6px}
+    @media(max-width:760px){main{grid-template-columns:1fr}.full{grid-column:auto!important}}
+  </style>
+</head>
+<body>
+  <header><h1>EvalOps Review</h1><p>Runs, comparisons, release gates, and human-labeled failure cases.</p></header>
+  <main>
+    <section><div class="row"><h2 class="grow">Runs</h2><select id="appFilter"><option value="">All producers</option><option>agent</option><option>rag</option><option>finetune</option></select><button id="refreshRuns">Refresh</button></div><div id="runs"></div></section>
+    <section><h2>Run detail</h2><div id="runDetail" class="empty">Select a run to inspect metrics and tags.</div><form id="tagForm" hidden><div class="row"><input id="caseId" required placeholder="case ID"><input id="caseTag" required placeholder="failure tag"><button>Tag bad case</button></div><textarea id="caseNote" placeholder="Optional review note" rows="2" style="width:100%;margin-top:8px"></textarea></form></section>
+    <section class="full"><div class="row"><h2 class="grow">Compare sessions and release gates</h2><button id="refreshCompares">Refresh</button></div><div id="compares"></div></section>
+    <section class="full"><div class="row"><h2 class="grow">Bad-case review queue</h2><button id="refreshCases">Refresh</button></div><div id="badCases"></div></section>
+  </main>
+  <script>
+    const api='/v1'; let selected=null;
+    const el=id=>document.getElementById(id); const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    async function get(path){const r=await fetch(api+path);if(!r.ok)throw new Error(await r.text());return r.json()}
+    function error(target,e){el(target).innerHTML=`<p class="bad">${esc(e.message)}</p>`}
+    async function runs(){try{const type=el('appFilter').value;const d=await get('/runs?limit=100'+(type?'&app_type='+encodeURIComponent(type):''));el('runs').innerHTML=d.runs.length?`<table><tr><th>producer</th><th>run</th><th>status</th></tr>${d.runs.map(r=>`<tr><td>${esc(r.app_type)}</td><td><button class="secondary mono" data-a="${esc(r.app_type)}" data-r="${esc(r.run_id)}">${esc(r.run_id)}</button></td><td>${esc(r.status)}</td></tr>`).join('')}</table>`:'<div class="empty">No normalized runs yet.</div>';document.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>detail(b.dataset.a,b.dataset.r));}catch(e){error('runs',e)}}
+    async function detail(app,id){try{selected={app,id};const [d,t]=await Promise.all([get(`/runs/${encodeURIComponent(app)}/${encodeURIComponent(id)}`),get(`/runs/${encodeURIComponent(app)}/${encodeURIComponent(id)}/bad-cases`)]);el('runDetail').innerHTML=`<p><b>${esc(app)}</b> / <span class="mono">${esc(id)}</span></p><div class="detail">${esc(JSON.stringify({metrics:d.metrics,bad_cases:t.bad_cases},null,2))}</div>`;el('tagForm').hidden=false;}catch(e){error('runDetail',e)}}
+    async function compares(){try{const d=await get('/compare?limit=50');el('compares').innerHTML=d.sessions.length?`<table><tr><th>ID</th><th>producer</th><th>baseline → candidate</th><th>latest gate</th></tr>${d.sessions.map(s=>{const gate=s.decisions[0]?.decision||'not evaluated';return `<tr><td>${s.compare_session_id}</td><td>${esc(s.app_type)}</td><td class="mono">${esc(s.baseline_run_id)} → ${esc(s.candidate_run_id)}</td><td class="${gate==='promoted'?'ok':'bad'}">${esc(gate)}</td></tr>`}).join('')}</table>`:'<div class="empty">No compare sessions yet.</div>';}catch(e){error('compares',e)}}
+    async function cases(){try{const d=await get('/bad-cases?limit=100');el('badCases').innerHTML=d.bad_cases.length?`<table><tr><th>run</th><th>case</th><th>tag</th><th>note</th></tr>${d.bad_cases.map(c=>`<tr><td class="mono">${esc(c.app_type)}/${esc(c.run_id)}</td><td>${esc(c.case_id)}</td><td>${esc(c.tag)}</td><td>${esc(c.note)}</td></tr>`).join('')}</table>`:'<div class="empty">No bad cases tagged.</div>';}catch(e){error('badCases',e)}}
+    el('tagForm').onsubmit=async event=>{event.preventDefault();if(!selected)return;try{await fetch(`${api}/runs/${encodeURIComponent(selected.app)}/${encodeURIComponent(selected.id)}/bad-cases`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({case_id:el('caseId').value,tag:el('caseTag').value,note:el('caseNote').value||null})}).then(async r=>{if(!r.ok)throw new Error(await r.text())});event.target.reset();await detail(selected.app,selected.id);await cases();}catch(e){error('runDetail',e)}};
+    el('refreshRuns').onclick=runs;el('refreshCompares').onclick=compares;el('refreshCases').onclick=cases;el('appFilter').onchange=runs;runs();compares();cases();
+  </script>
+</body></html>
