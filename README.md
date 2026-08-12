@@ -4,6 +4,11 @@ Agent eval, observability, and release platform for the AI intern portfolio.
 
 Receives completed run reports from upstream systems (agent, RAG, post-training), normalizes them into a unified schema, and supports cross-version comparison and threshold-based release gating.
 
+**Current status (2026-08-06):** Agent/RAG MVP closure is complete. Ingest
+payloads are validated against their versioned producer schemas; the full local
+PDF → RAG → Agent tool → EvalOps compare/gate path is verified by the parent
+workspace closure script. The local suite has 45 passing tests.
+
 ## Architecture
 
 ```
@@ -81,11 +86,13 @@ uv run python scripts/run_naive_rag_baseline.py --config config/default.yaml --d
 curl -X POST http://localhost:8000/v1/compare \
   -H "Content-Type: application/json" \
   -d '{
-    "baseline_run": {"app_type": "agent", "run_id": "run-abc"},
-    "candidate_run": {"app_type": "agent", "run_id": "run-xyz"},
-    "metrics": ["tool_success_rate", "task_success", "wall_duration_ms"]
+    "app_type": "agent",
+    "baseline_run_id": "run-abc",
+    "candidate_run_id": "run-xyz"
   }'
 ```
+
+The response contains `compare_session_id`; use it for the gate request.
 
 ### Check release gate
 
@@ -93,14 +100,26 @@ curl -X POST http://localhost:8000/v1/compare \
 curl -X POST http://localhost:8000/v1/gate \
   -H "Content-Type: application/json" \
   -d '{
-    "baseline_run": {"app_type": "agent", "run_id": "run-abc"},
-    "candidate_run": {"app_type": "agent", "run_id": "run-xyz"},
+    "compare_session_id": 1,
     "rules": [
-      {"metric": "tool_success_rate", "op": "delta_abs_gte", "threshold": -0.05},
-      {"metric": "task_success",      "op": "delta_abs_gte", "threshold": 0.0}
+      {"metric": "tool_success_rate", "op": "gte", "threshold": 0.95},
+      {"metric": "tool_success_rate", "op": "delta_abs_gte", "threshold": 0.05}
     ]
   }'
 ```
+
+### Verify the three-project closure
+
+From the parent workspace, run the real local HTTP workflow. It starts
+temporary RAG and EvalOps services, uploads a generated PDF, calls the Agent
+retrieval tool, submits both producer schemas, and persists two release
+decisions:
+
+```bash
+./scripts/run_three_project_closure.sh
+```
+
+No LLM key, external model, or cloud service is required.
 
 ## Project Structure
 

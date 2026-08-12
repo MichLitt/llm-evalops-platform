@@ -31,7 +31,7 @@ Derived metric: `avg_end_to_end_latency_ms = sum(avg_retrieval + avg_rerank + av
 
 ### `agent/v1`
 
-Source: `llm-coding-agent-system` `EvalOpsClient` payload (to be added in Phase 2)
+Source: `llm-coding-agent-system` `EvalOpsClient` payload
 
 | `runs` field | source field | nullable? |
 |---|---|---|
@@ -55,7 +55,8 @@ Source: `llm-coding-agent-system` `EvalOpsClient` payload (to be added in Phase 
 3. Add the import to `adapters/__init__.py` side-effect imports.
 4. Update this file (ADAPTERS.md) with the field contract.
 5. Update `PROJECT_PLAN.md` Sections 3.2 and 7.
-6. Add the canonical key to `api/ingest.py` `_KNOWN_SCHEMAS`.
+6. Add the canonical key and its Pydantic request model to
+   `api/ingest.py` `_SCHEMA_MODELS`.
 
 ## Gate Rule Ops Reference
 

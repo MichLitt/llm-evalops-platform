@@ -11,16 +11,28 @@ from __future__ import annotations
 
 import json
 import time
+from typing import Type
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
-from llm_evalops_platform.schemas.ingest import IngestResponse
+from llm_evalops_platform.schemas.ingest import (
+    AgentV1IngestRequest,
+    BaseIngestRequest,
+    FinetuneV1IngestRequest,
+    IngestResponse,
+    RagV1IngestRequest,
+)
 from llm_evalops_platform.storage.db import db
 
 router = APIRouter()
 
-_KNOWN_SCHEMAS = {"rag/v1", "agent/v1", "finetune/v1"}
+_SCHEMA_MODELS: dict[str, Type[BaseIngestRequest]] = {
+    "rag/v1": RagV1IngestRequest,
+    "agent/v1": AgentV1IngestRequest,
+    "finetune/v1": FinetuneV1IngestRequest,
+}
 
 
 @router.post(
@@ -30,17 +42,24 @@ _KNOWN_SCHEMAS = {"rag/v1", "agent/v1", "finetune/v1"}
 )
 async def ingest_run(app_type: str, version: str, request: Request) -> IngestResponse:
     canonical_key = f"{app_type}/{version}"
-    if canonical_key not in _KNOWN_SCHEMAS:
+    schema_model = _SCHEMA_MODELS.get(canonical_key)
+    if schema_model is None:
         raise HTTPException(status_code=404, detail=f"Unknown schema: {canonical_key}")
 
     try:
-        payload: dict = await request.json()
+        raw_payload = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON body")
 
-    run_id = payload.get("run_id")
-    if not run_id:
-        raise HTTPException(status_code=422, detail="Missing required field: run_id")
+    if not isinstance(raw_payload, dict):
+        raise HTTPException(status_code=422, detail="JSON body must be an object")
+    try:
+        validated = schema_model.model_validate(raw_payload)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors()) from exc
+
+    payload = validated.model_dump(mode="json")
+    run_id = validated.run_id
 
     raw = json.dumps(payload, ensure_ascii=False)
     now = time.time()
