@@ -25,6 +25,12 @@ from llm_evalops_platform.adapters.base import REGISTRY, BaseAdapter, Normalized
 
 _METRIC_FIELDS = [
     "total_steps", "total_tool_calls", "tool_success_rate", "total_tokens",
+    # Controlled-evaluation extensions.  They remain optional so existing
+    # service reports keep their stable contract while G3 aggregate reports
+    # can be compared and gated without a parallel schema.
+    "verification_pass_rate", "tool_retry_rate", "retrieval_hit_rate",
+    "citation_correctness_rate", "wall_latency_p50_ms",
+    "wall_latency_p95_ms", "estimated_cost_usd",
 ]
 
 

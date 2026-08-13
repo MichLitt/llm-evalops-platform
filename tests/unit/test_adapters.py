@@ -82,6 +82,8 @@ _AGENT_EVAL_PAYLOAD = {
     "total_tool_calls": 30,
     "tool_success_rate": 0.9,
     "total_tokens": 5000,
+    "verification_pass_rate": 0.8,
+    "wall_latency_p95_ms": 12000,
 }
 
 _AGENT_SERVICE_PAYLOAD = {
@@ -138,3 +140,5 @@ def test_agent_metrics():
     metric_map = dict(out.metrics)
     assert metric_map["tool_success_rate"] == pytest.approx(0.9)
     assert metric_map["total_tokens"] == pytest.approx(5000)
+    assert metric_map["verification_pass_rate"] == pytest.approx(0.8)
+    assert metric_map["wall_latency_p95_ms"] == pytest.approx(12000)
