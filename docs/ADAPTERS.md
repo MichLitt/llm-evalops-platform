@@ -48,6 +48,20 @@ Source: `llm-coding-agent-system` `EvalOpsClient` payload
   `sha256(f"{benchmark_name}:{','.join(sorted(task_ids))}")[:16]`
 - `run_type = "service"` or fields absent: `NULL` (cannot participate in compare)
 
+**Metrics (`run_metrics`)** — each numeric field becomes a metric row when it is
+non-null: `total_steps`, `total_tool_calls`, `tool_success_rate`,
+`total_tokens`, `input_tokens`, `output_tokens`, `llm_call_count`,
+`estimated_cost_usd`, plus the controlled-evaluation extensions
+(`verification_pass_rate`, `tool_retry_rate`, `retrieval_hit_rate`,
+`citation_correctness_rate`, `wall_latency_p50_ms`, `wall_latency_p95_ms`).
+
+Token fields are provider-reported usage. `token_usage_status` (not a metric)
+is `provider` when every LLM call reported usage, `partial` when only some did
+(token metrics are then lower bounds), and `unavailable` when none did; in that
+case the producer sends `null` and no token or cost metric row is written.
+Producers never substitute a client-side estimate. `estimated_cost_usd` is
+present only when the producer profile configures pricing.
+
 ## Adding a New Adapter
 
 1. Create `adapters/{app_type}_v{n}.py` and implement `BaseAdapter.normalize()`.

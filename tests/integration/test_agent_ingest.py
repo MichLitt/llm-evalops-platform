@@ -83,3 +83,65 @@ def test_service_run_cannot_compare(client, run_worker):
         "candidate_run_id": EVAL_RUN["run_id"],
     })
     assert r.status_code == 422
+
+
+USAGE_RUN = {
+    "run_id": "agent-usage-run-001",
+    "run_type": "eval",
+    "status": "success",
+    "total_steps": 2,
+    "total_tool_calls": 1,
+    "tool_success_rate": 1.0,
+    "total_tokens": 2280,
+    "input_tokens": 2200,
+    "output_tokens": 80,
+    "llm_call_count": 2,
+    "token_usage_status": "provider",
+    "estimated_cost_usd": 0.00236,
+    "wall_duration_ms": 9000,
+    "benchmark_name": "custom",
+    "task_ids": ["t1"],
+}
+
+
+def _metrics(client, run_id: str) -> dict[str, float]:
+    r = client.get(f"/v1/runs/agent/{run_id}/metrics")
+    assert r.status_code == 200
+    return {m["metric_name"]: m["metric_value"] for m in r.json()["metrics"]}
+
+
+def test_provider_usage_fields_become_metrics(client, run_worker):
+    assert client.post("/v1/ingest/agent/v1", json=USAGE_RUN).status_code in (200, 201, 202)
+    run_worker()
+
+    metrics = _metrics(client, USAGE_RUN["run_id"])
+    assert metrics["total_tokens"] == 2280
+    assert metrics["input_tokens"] == 2200
+    assert metrics["output_tokens"] == 80
+    assert metrics["llm_call_count"] == 2
+    assert metrics["estimated_cost_usd"] == 0.00236
+
+
+def test_unreported_usage_is_accepted_without_token_metrics(client, run_worker):
+    payload = {
+        **USAGE_RUN,
+        "run_id": "agent-usage-run-002",
+        "total_tokens": None,
+        "input_tokens": None,
+        "output_tokens": None,
+        "token_usage_status": "unavailable",
+        "estimated_cost_usd": None,
+    }
+    assert client.post("/v1/ingest/agent/v1", json=payload).status_code in (200, 201, 202)
+    run_worker()
+
+    metrics = _metrics(client, payload["run_id"])
+    assert "total_tokens" not in metrics
+    assert "input_tokens" not in metrics
+    assert "estimated_cost_usd" not in metrics
+    assert metrics["llm_call_count"] == 2
+
+
+def test_unknown_token_usage_status_is_rejected(client):
+    payload = {**USAGE_RUN, "run_id": "agent-usage-run-003", "token_usage_status": "estimated"}
+    assert client.post("/v1/ingest/agent/v1", json=payload).status_code == 422

@@ -370,6 +370,7 @@ RAG 已有 `EvalOpsClient` + `EvalRunReport`（`schema_version = "rag/v1"`），
 - [x] 挂在 `RunStateStore.finish_run` 之后触发上报
 - [x] 上报字段（MVP）：
   - 所有 run 类型共有：`run_id`、`run_type`（`"eval"` 或 `"service"`）、`status`、`total_steps`、`total_tool_calls`、`tool_success_rate`、`total_tokens`、`termination_reason`、`wall_duration_ms`、`git_commit`、`preset`、`llm_profile`
+  - 用量字段（可选，均为 provider 上报值）：`input_tokens`、`output_tokens`、`llm_call_count`、`token_usage_status`（`provider` / `partial` / `unavailable`）、`estimated_cost_usd`；provider 未上报时 token 字段为 `null`，不使用客户端估算
   - eval run 额外携带：`benchmark_name`、`task_ids`（列表）
   - service run：`benchmark_name` 和 `task_ids` 不填
 - [x] 实现 `adapters/agent_v1.py`，字段映射（依据 3.2 节契约）：
@@ -387,7 +388,11 @@ RAG 已有 `EvalOpsClient` + `EvalRunReport`（`schema_version = "rag/v1"`），
   | `total_steps` | — | `total_steps` | |
   | `total_tool_calls` | — | `total_tool_calls` | |
   | `tool_success_rate` | — | `tool_success_rate` | |
-  | `total_tokens` | — | `total_tokens` | |
+  | `total_tokens` | — | `total_tokens` | provider 上报；`null` 时不写指标 |
+  | `input_tokens` / `output_tokens` | — | 同名 | provider 上报；`partial` 时为下界 |
+  | `llm_call_count` | — | `llm_call_count` | |
+  | `estimated_cost_usd` | — | `estimated_cost_usd` | 仅在 producer 配置单价时出现 |
+  | `token_usage_status` | — | — | 仅保存在 raw payload，用于解释 token 指标 |
 
 ### 7.3 Compare + Gate
 

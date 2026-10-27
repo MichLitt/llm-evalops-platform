@@ -48,7 +48,14 @@ class AgentV1IngestRequest(BaseIngestRequest):
     total_steps: int = 0
     total_tool_calls: int = 0
     tool_success_rate: float | None = None
-    total_tokens: int = 0
+    # Provider-reported input+output tokens. None means the provider reported
+    # no usage; producers never substitute a client-side estimate.
+    total_tokens: int | None = 0
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    llm_call_count: int | None = None
+    token_usage_status: Literal["provider", "partial", "unavailable"] | None = None
+    estimated_cost_usd: float | None = None
     termination_reason: str | None = None
     wall_duration_ms: int = 0
     git_commit: str | None = None

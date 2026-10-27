@@ -25,6 +25,9 @@ from llm_evalops_platform.adapters.base import REGISTRY, BaseAdapter, Normalized
 
 _METRIC_FIELDS = [
     "total_steps", "total_tool_calls", "tool_success_rate", "total_tokens",
+    # Provider-reported usage (null when unreported, so no metric row is
+    # written). With token_usage_status="partial" these are lower bounds.
+    "input_tokens", "output_tokens", "llm_call_count",
     # Controlled-evaluation extensions.  They remain optional so existing
     # service reports keep their stable contract while G3 aggregate reports
     # can be compared and gated without a parallel schema.
