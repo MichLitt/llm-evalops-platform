@@ -13,7 +13,7 @@ Other mappings:
   model_version   ← llm_profile
   source_commit   ← git_commit
   dataset_version = None  (agent runs have no fixed dataset)
-  wall_duration_ms← wall_duration_ms  (real wall time; semantically consistent with domain)
+  wall_duration_ms← wall_duration_ms  (real wall time; NULL when the producer did not record it)
 """
 
 from __future__ import annotations
@@ -34,6 +34,8 @@ _METRIC_FIELDS = [
     "verification_pass_rate", "tool_retry_rate", "retrieval_hit_rate",
     "citation_correctness_rate", "wall_latency_p50_ms",
     "wall_latency_p95_ms", "estimated_cost_usd",
+    # Benchmark aggregates graded by an official harness (e.g. SWE-bench).
+    "resolved_rate",
 ]
 
 

@@ -57,13 +57,18 @@ class AgentV1IngestRequest(BaseIngestRequest):
     token_usage_status: Literal["provider", "partial", "unavailable"] | None = None
     estimated_cost_usd: float | None = None
     termination_reason: str | None = None
-    wall_duration_ms: int = 0
+    # None when the producer could not record wall time, e.g. an aggregate of
+    # an external agent that does not time its runs.
+    wall_duration_ms: int | None = 0
     git_commit: str | None = None
     preset: str | None = None
     llm_profile: str | None = None
     # eval-only fields
     benchmark_name: str | None = None
     task_ids: list[str] | None = None
+    # Controlled-evaluation aggregate: share of task_ids the benchmark's
+    # official grader marked resolved.
+    resolved_rate: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 class FinetuneV1IngestRequest(BaseIngestRequest):

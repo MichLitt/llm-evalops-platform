@@ -41,7 +41,7 @@ Source: `llm-coding-agent-system` `EvalOpsClient` payload
 | `config_version` | `preset` | optional |
 | `model_version` | `llm_profile` | optional |
 | `source_commit` | `git_commit` | optional |
-| `wall_duration_ms` | `wall_duration_ms` | required |
+| `wall_duration_ms` | `wall_duration_ms` | optional: NULL when the producer did not record wall time |
 
 **`task_set_id` computation:**
 - `run_type = "eval"` and `benchmark_name` + `task_ids` present:
@@ -53,7 +53,14 @@ non-null: `total_steps`, `total_tool_calls`, `tool_success_rate`,
 `total_tokens`, `input_tokens`, `output_tokens`, `llm_call_count`,
 `estimated_cost_usd`, plus the controlled-evaluation extensions
 (`verification_pass_rate`, `tool_retry_rate`, `retrieval_hit_rate`,
-`citation_correctness_rate`, `wall_latency_p50_ms`, `wall_latency_p95_ms`).
+`citation_correctness_rate`, `wall_latency_p50_ms`, `wall_latency_p95_ms`)
+and the benchmark aggregate `resolved_rate`.
+
+`resolved_rate` (0–1) is the share of `task_ids` that a benchmark's official
+grader marked resolved, sent by aggregate reports such as the WP1 SWE-bench
+Verified arms (one `agent/v1` report per arm, `run_type = "eval"`). An
+aggregate of an external agent that does not time its runs sends
+`wall_duration_ms: null`.
 
 Token fields are provider-reported usage. `token_usage_status` (not a metric)
 is `provider` when every LLM call reported usage, `partial` when only some did

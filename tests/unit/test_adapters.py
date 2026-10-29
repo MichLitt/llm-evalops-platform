@@ -142,3 +142,9 @@ def test_agent_metrics():
     assert metric_map["total_tokens"] == pytest.approx(5000)
     assert metric_map["verification_pass_rate"] == pytest.approx(0.8)
     assert metric_map["wall_latency_p95_ms"] == pytest.approx(12000)
+
+
+def test_agent_benchmark_aggregate_without_wall_time():
+    out = _agent.normalize({**_AGENT_EVAL_PAYLOAD, "wall_duration_ms": None, "resolved_rate": 0.7})
+    assert out.wall_duration_ms is None
+    assert dict(out.metrics)["resolved_rate"] == pytest.approx(0.7)

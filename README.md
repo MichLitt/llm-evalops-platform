@@ -49,6 +49,11 @@ The API and normalization worker run as **separate processes** against the same 
 
 See [`docs/ADAPTERS.md`](docs/ADAPTERS.md) for per-producer field contracts and how to add a new adapter.
 
+Besides per-run reports, `agent/v1` also takes one aggregate report per
+evaluation arm, so that arms on the same task set can be compared. Such a
+report can carry a benchmark's `resolved_rate`. If the arm's wall time was
+not recorded, `wall_duration_ms` is `null`.
+
 ## Quick Start
 
 ```bash

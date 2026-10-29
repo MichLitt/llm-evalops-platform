@@ -145,3 +145,28 @@ def test_unreported_usage_is_accepted_without_token_metrics(client, run_worker):
 def test_unknown_token_usage_status_is_rejected(client):
     payload = {**USAGE_RUN, "run_id": "agent-usage-run-003", "token_usage_status": "estimated"}
     assert client.post("/v1/ingest/agent/v1", json=payload).status_code == 422
+
+
+AGGREGATE_RUN = {
+    **USAGE_RUN,
+    "run_id": "agent-aggregate-run-001",
+    "benchmark_name": "swebench_verified_subset",
+    "task_ids": ["a__x-1", "b__x-2"],
+    "resolved_rate": 0.5,
+    "wall_duration_ms": None,
+}
+
+
+def test_benchmark_aggregate_carries_resolved_rate_and_may_omit_wall_time(client, run_worker):
+    assert client.post("/v1/ingest/agent/v1", json=AGGREGATE_RUN).status_code in (200, 201, 202)
+    run_worker()
+
+    r = client.get(f"/v1/runs/agent/{AGGREGATE_RUN['run_id']}")
+    assert r.status_code == 200
+    assert r.json()["run"]["wall_duration_ms"] is None
+    assert _metrics(client, AGGREGATE_RUN["run_id"])["resolved_rate"] == 0.5
+
+
+def test_resolved_rate_outside_unit_interval_is_rejected(client):
+    payload = {**AGGREGATE_RUN, "run_id": "agent-aggregate-run-002", "wall_duration_ms": 1000, "resolved_rate": 70}
+    assert client.post("/v1/ingest/agent/v1", json=payload).status_code == 422
